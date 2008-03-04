@@ -86,9 +86,16 @@ class bitmap_image
 public:
 
    enum channel_mode {
-                      rgb_mode,
-                      bgr_mode
+                        rgb_mode = 0,
+                        bgr_mode = 1
                      };
+
+   enum color_plane {
+                       blue_plane  = 0,
+                       green_plane = 1,
+                       red_plane   = 2
+                    };
+
 
    bitmap_image()
    : file_name_(""),
@@ -340,43 +347,33 @@ public:
 
    inline void set_all_ith_channels(const unsigned int& channel, const unsigned char& value)
    {
-      for(unsigned char* it = (data_ + channel); it < (data_ + length_); it+=bytes_per_pixel_) { *it = value; }
+      for(unsigned char* it = (data_ + channel); it < (data_ + length_); it += bytes_per_pixel_) { *it = value; }
    }
 
-   inline void set_all_red_channels(const unsigned char& value)
+   inline void set_channel(const color_plane color,const unsigned char& value)
    {
-      for(unsigned char* it = (data_ + 2); it < (data_ + length_); it+=bytes_per_pixel_) { *it = value; }
-   }
-
-   inline void set_all_green_channels(const unsigned char& value)
-   {
-      for(unsigned char* it = (data_ + 1); it < (data_ + length_); it+=bytes_per_pixel_) { *it = value; }
-   }
-
-   inline void set_all_blue_channels(const unsigned char& value)
-   {
-      for(unsigned char* it = (data_ + 0); it < (data_ + length_); it+=bytes_per_pixel_) { *it = value; }
-   }
-
-   inline void ror_all_red_channels(const unsigned int& ror)
-   {
-      for(unsigned char* it = (data_ + 2); it < (data_ + length_); it+=bytes_per_pixel_)
+      unsigned int offset = 0;
+      switch (color)
       {
-         *it = static_cast<unsigned char>(((*it) >> ror) | ((*it) << (8 - ror)));
+         case red_plane   : offset = 2; break;
+         case green_plane : offset = 1; break;
+         case blue_plane  : offset = 0; break;
+         default          : return;
       }
+      for(unsigned char* it = (data_ + offset); it < (data_ + length_); it += bytes_per_pixel_) { *it = value; }
    }
 
-   inline void ror_all_green_channels(const unsigned int& ror)
+   inline void ror_channel(const color_plane color, const unsigned int& ror)
    {
-      for(unsigned char* it = (data_ + 1); it < (data_ + length_); it+=bytes_per_pixel_)
+      unsigned int offset = 0;
+      switch (color)
       {
-         *it = static_cast<unsigned char>(((*it) >> ror) | ((*it) << (8 - ror)));
+         case red_plane   : offset = 2; break;
+         case green_plane : offset = 1; break;
+         case blue_plane  : offset = 0; break;
+         default          : return;
       }
-   }
-
-   inline void ror_all_blue_channels(const unsigned int& ror)
-   {
-      for(unsigned char* it = (data_ + 0); it < (data_ + length_); it+=bytes_per_pixel_)
+      for(unsigned char* it = (data_ + offset); it < (data_ + length_); it += bytes_per_pixel_)
       {
          *it = static_cast<unsigned char>(((*it) >> ror) | ((*it) << (8 - ror)));
       }
@@ -386,7 +383,7 @@ public:
                                 const unsigned char& g_value,
                                 const unsigned char& b_value)
    {
-      for(unsigned char* it = (data_ + 0); it < (data_ + length_); it+=bytes_per_pixel_)
+      for(unsigned char* it = (data_ + 0); it < (data_ + length_); it += bytes_per_pixel_)
       {
          *(it + 0) = b_value;
          *(it + 1) = g_value;
@@ -396,7 +393,7 @@ public:
 
    inline void convert_to_grayscale()
    {
-      for(unsigned char* it = data_; it < (data_ + length_); it+=bytes_per_pixel_)
+      for(unsigned char* it = data_; it < (data_ + length_); it += bytes_per_pixel_)
       {
          unsigned char gray_value = static_cast<unsigned char>(
          (0.299 * (*(it + 2))) +
@@ -456,16 +453,16 @@ public:
          unsigned char* it2 = it1 + row_increment_ - bytes_per_pixel_;
          while(it1 < it2)
          {
-         for(unsigned int i = 0; i < bytes_per_pixel_; ++i)
-         {
-         unsigned char* p1 = (it1 + i);
-         unsigned char* p2 = (it2 + i);
-         unsigned char tmp = *p1;
-         *p1 = *p2;
-         *p2 = tmp;
-         }
-         it1+=bytes_per_pixel_;
-         it2-=bytes_per_pixel_;
+            for(unsigned int i = 0; i < bytes_per_pixel_; ++i)
+            {
+               unsigned char* p1 = (it1 + i);
+               unsigned char* p2 = (it2 + i);
+               unsigned char tmp = *p1;
+               *p1 = *p2;
+               *p2 = tmp;
+            }
+            it1+=bytes_per_pixel_;
+            it2-=bytes_per_pixel_;
          }
       }
    }
@@ -483,6 +480,33 @@ public:
             *(it1 + x) = *(it2 + x);
             *(it2 + x) = tmp;
          }
+      }
+   }
+
+   void extract_response(const color_plane color, double* response_image)
+   {
+      unsigned int offset = 0;
+      switch (color)
+      {
+         case red_plane   : offset = 2; break;
+         case green_plane : offset = 1; break;
+         case blue_plane  : offset = 0; break;
+         default          : return;
+      }
+      for(unsigned char* it = (data_ + offset); it < (data_ + length_); ++response_image, it += bytes_per_pixel_)
+      {
+         *response_image = (1.0 * (*it)) / 256.0;
+      }
+   }
+
+   void extract_gray_scale_response(double* response_image)
+   {
+      for(unsigned char* it = data_; it < (data_ + length_); it += bytes_per_pixel_)
+      {
+         unsigned char gray_value = static_cast<unsigned char>((0.299 * (*(it + 2))) +
+                                                               (0.587 * (*(it + 1))) +
+                                                               (0.114 * (*(it + 0))));
+         *response_image = (1.0 * gray_value) / 256.0;
       }
    }
 
@@ -545,7 +569,7 @@ private:
    void reverse_channels()
    {
       if(3 != bytes_per_pixel_) return;
-      for(unsigned char* it = data_; it < (data_ + length_); it+=bytes_per_pixel_)
+      for(unsigned char* it = data_; it < (data_ + length_); it += bytes_per_pixel_)
       {
          unsigned char tmp = *(it + 0);
          *(it + 0) = *(it + 2);
@@ -899,6 +923,42 @@ const rgb_store color_map[1000] = {
    {130,   0,   0}, {129,   0,   0}, {129,   0,   0}, {128,   0,   0}, {127,   0,   0},
    {122,   0,   9}, {117,   0,  18}, {112,   0,  27}, {107,   0,  36}, {102,   0,  45}
 };
+
+
+void rgb_to_ycbcr(const unsigned int& length, double* red, double* green, double* blue,
+                                              double* y,   double* cb,    double* cr)
+{
+   unsigned int i = 0;
+   while (i < length)
+   {
+      ( *y) =   16.0 + (  65.481 * (*red) +  128.553 * (*green) +  24.966 * (*blue));
+      (*cb) =  128.0 + ( -37.797 * (*red) +  -74.203 * (*green) + 112.000 * (*blue));
+      (*cr) =  128.0 + ( 112.000 * (*red) +  -93.786 * (*green) -  18.214 * (*blue));
+      ++i;
+      ++red; ++green; ++blue;
+      ++y;   ++cb;    ++cr;
+   }
+}
+
+void ycbcr_to_rgb(const unsigned int& length, double* y,   double* cb,    double* cr,
+                                              double* red, double* green, double* blue)
+{
+   unsigned int i = 0;
+   while (i < length)
+   {
+      double y_  =  (*y) -  16.0;
+      double cb_ = (*cb) - 128.0;
+      double cr_ = (*cr) - 128.0;
+
+        (*red) = 0.000456621 * y_                    + 0.00625893 * cr_;
+      (*green) = 0.000456621 * y_ - 0.00153632 * cb_ - 0.00318811 * cr_;
+       (*blue) = 0.000456621 * y_                    + 0.00791071 * cb_;
+
+      ++i;
+      ++red; ++green; ++blue;
+      ++y;   ++cb;    ++cr;
+   }
+}
 
 
 
