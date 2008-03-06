@@ -7,7 +7,7 @@
 * Author: Arash Partow - 2002                                             *
 * URL: http://www.partow.net                                              *
 *                                                                         *
-* Note: This library only support 24-bits per pixel bitmap format files.  *
+* Note: This library only supports 24-bits per pixel bitmap format files. *
 *                                                                         *
 * Copyright notice:                                                       *
 * Free use of the Platform Independent Bitmap Image Reader Writer Library *
@@ -26,6 +26,8 @@
 #include <string>
 #include <fstream>
 #include <iterator>
+#include <limits>
+#include <cmath>
 
 struct bitmap_file_header
 {
@@ -152,6 +154,11 @@ public:
    ~bitmap_image()
    {
      delete [] data_;
+   }
+
+   inline void clear(const unsigned char v = 0x00)
+   {
+      for(unsigned char* it = data_; it != data_ + length_; *it = v, ++it);
    }
 
    inline unsigned char red_channel(const unsigned int x, const unsigned int y) const
@@ -285,7 +292,7 @@ public:
       create_bitmap();
       if (clear)
       {
-         for(unsigned char* it = data_; it != data_ + length_; ++it) { *it |= 0x00; }
+         for(unsigned char* it = data_; it != data_ + length_; ++it) { *it = 0x00; }
       }
    }
 
@@ -379,6 +386,14 @@ public:
       }
    }
 
+   inline void set_all_channels(const unsigned char& value)
+   {
+      for(unsigned char* it = data_; it < (data_ + length_); )
+      {
+         *(it++) = value;
+      }
+   }
+
    inline void set_all_channels(const unsigned char& r_value,
                                 const unsigned char& g_value,
                                 const unsigned char& b_value)
@@ -405,14 +420,14 @@ public:
       }
    }
 
-   unsigned char* data() { return data_; }
+   const unsigned char* data() { return data_; }
 
    inline void bgr_to_rgb()
    {
       if ((bgr_mode == channel_mode_) && (3 == bytes_per_pixel_))
       {
          reverse_channels();
-         channel_mode_ = bgr_mode;
+         channel_mode_ = rgb_mode;
       }
    }
 
@@ -461,8 +476,8 @@ public:
                *p1 = *p2;
                *p2 = tmp;
             }
-            it1+=bytes_per_pixel_;
-            it2-=bytes_per_pixel_;
+            it1 += bytes_per_pixel_;
+            it2 -= bytes_per_pixel_;
          }
       }
    }
@@ -483,7 +498,7 @@ public:
       }
    }
 
-   void extract_response(const color_plane color, double* response_image)
+   void export_response_image(const color_plane color, double* response_image)
    {
       unsigned int offset = 0;
       switch (color)
@@ -495,18 +510,99 @@ public:
       }
       for(unsigned char* it = (data_ + offset); it < (data_ + length_); ++response_image, it += bytes_per_pixel_)
       {
-         *response_image = (1.0 * (*it)) / 256.0;
+         (*response_image) = (1.0 * (*it)) / 256.0;
       }
    }
 
-   void extract_gray_scale_response(double* response_image)
+   void export_gray_scale_response_image(double* response_image)
    {
       for(unsigned char* it = data_; it < (data_ + length_); it += bytes_per_pixel_)
       {
          unsigned char gray_value = static_cast<unsigned char>((0.299 * (*(it + 2))) +
                                                                (0.587 * (*(it + 1))) +
                                                                (0.114 * (*(it + 0))));
-         *response_image = (1.0 * gray_value) / 256.0;
+         (*response_image) = (1.0 * gray_value) / 256.0;
+      }
+   }
+
+   void export_rgb(double* red, double* green, double* blue)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         (*blue)  = (1.0 * (*(it++))) / 256.0;
+         (*green) = (1.0 * (*(it++))) / 256.0;
+         (*red)   = (1.0 * (*(it++))) / 256.0;
+      }
+   }
+
+   void export_ycbcr(double* y, double* cb, double* cr)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++y, ++cb, ++cr)
+      {
+         double blue  = (1.0 * (*(it++)));
+         double green = (1.0 * (*(it++)));
+         double red   = (1.0 * (*(it++)));
+
+         ( *y) =   16.0 + (1.0/256.0) * (  65.738 * red + 129.057 * green +  25.064 * blue);
+         (*cb) =  128.0 + (1.0/256.0) * (- 37.945 * red -  74.494 * green + 112.439 * blue);
+         (*cr) =  128.0 + (1.0/256.0) * ( 112.439 * red -  94.154 * green -  18.285 * blue);
+      }
+   }
+
+   void import_from_rgb(double* red, double* green, double* blue)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         *(it++) = static_cast<unsigned char>(256.0 * (*blue) );
+         *(it++) = static_cast<unsigned char>(256.0 * (*green));
+         *(it++) = static_cast<unsigned char>(256.0 * (*red)  );
+      }
+   }
+
+   void import_from_ycbcr(double* y, double* cb, double* cr)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++y, ++cb, ++cr)
+      {
+         double y_  =  (*y);
+         double cb_ = (*cb);
+         double cr_ = (*cr);
+         *(it++) = static_cast<unsigned char>((298.082 * y_ + 516.412 * cb_                 ) / 256.000 - 276.836);
+         *(it++) = static_cast<unsigned char>((298.082 * y_ - 100.291 * cb_ - 208.120 * cr_ ) / 256.000 + 135.576);
+         *(it++) = static_cast<unsigned char>((298.082 * y_                 + 408.583 * cr_ ) / 256.000 - 222.921);
+      }
+   }
+
+   double psnr(const bitmap_image& image)
+   {
+      if ((image.width_ != width_) || (image.height_ != height_))
+      {
+         return 0.0;
+      }
+
+      unsigned char* it1 = data_;
+      unsigned char* it2 = image.data_;
+
+      double mse = 0.0;
+
+      while (it1 < (data_ + length_))
+      {
+         double v = (static_cast<double>(*it1) - static_cast<double>(*it2));
+         mse += v * v;
+         ++it1;
+         ++it2;
+      }
+      if (mse <= 0.0000001)
+      {
+         return 1000000.0;
+      }
+      else
+      {
+         mse /= (3.0 * width_ * height_);
+         return 20.0 * std::log10(255.0 / std::sqrt(mse));
       }
    }
 
@@ -514,57 +610,57 @@ private:
 
    void create_bitmap()
    {
-      length_       = width_ * height_ * bytes_per_pixel_;
+      length_ = width_ * height_ * bytes_per_pixel_;
       row_increment_ = width_ * bytes_per_pixel_;
       data_ = new unsigned char[length_];
    }
 
-  void load_bitmap()
-  {
-     std::ifstream stream(file_name_.c_str(),std::ios::binary);
-     if (!stream)
-     {
-        std::cout << "bitmap_image::load_bitmap() ERROR: bitmap_image - file " << file_name_ << " not found!" << std::endl;
-        return;
-     }
+   void load_bitmap()
+   {
+      std::ifstream stream(file_name_.c_str(),std::ios::binary);
+      if (!stream)
+      {
+         std::cerr << "bitmap_image::load_bitmap() ERROR: bitmap_image - file " << file_name_ << " not found!" << std::endl;
+         return;
+      }
 
-     bitmap_file_header bfh;
-     bitmap_information_header bih;
+      bitmap_file_header bfh;
+      bitmap_information_header bih;
 
-     read_bfh(stream,bfh);
-     read_bih(stream,bih);
+      read_bfh(stream,bfh);
+      read_bih(stream,bih);
 
-     if(bfh.type != 19778)
-     {
-        stream.close();
-        std::cout << "bitmap_image::load_bitmap() ERROR: bitmap_image - Invalid type value " << bfh.type << " expected 19778." << std::endl;
-        return;
-     }
+      if(bfh.type != 19778)
+      {
+         stream.close();
+         std::cerr << "bitmap_image::load_bitmap() ERROR: bitmap_image - Invalid type value " << bfh.type << " expected 19778." << std::endl;
+         return;
+      }
 
-     if(bih.bit_count != 24)
-     {
-        stream.close();
-        std::cout << "bitmap_image::load_bitmap() ERROR: bitmap_image - Invalid bit depth " << bih.bit_count << " expected 24." << std::endl;
-        return;
-     }
+      if(bih.bit_count != 24)
+      {
+         stream.close();
+         std::cerr << "bitmap_image::load_bitmap() ERROR: bitmap_image - Invalid bit depth " << bih.bit_count << " expected 24." << std::endl;
+         return;
+      }
 
-     height_ = bih.height;
-     width_  = bih.width;
+      height_ = bih.height;
+      width_  = bih.width;
 
-     bytes_per_pixel_ = bih.bit_count >> 3;
+      bytes_per_pixel_ = bih.bit_count >> 3;
 
-     unsigned int padding = (4 - ((3 * width_) % 4)) % 4;
-     char padding_data[4] = {0,0,0,0};
+      unsigned int padding = (4 - ((3 * width_) % 4)) % 4;
+      char padding_data[4] = {0,0,0,0};
 
-     create_bitmap();
+      create_bitmap();
 
-     for (unsigned int i = 0; i < height_; i++)
-     {
-        unsigned char* data_ptr = row(height_ - i - 1); // read in inverted row order
-        stream.read(reinterpret_cast<char*>(data_ptr),sizeof(char) * bytes_per_pixel_ * width_);
-        stream.read(padding_data,padding);
-     }
-  }
+      for (unsigned int i = 0; i < height_; i++)
+      {
+         unsigned char* data_ptr = row(height_ - i - 1); // read in inverted row order
+         stream.read(reinterpret_cast<char*>(data_ptr),sizeof(char) * bytes_per_pixel_ * width_);
+         stream.read(padding_data,padding);
+      }
+   }
 
    void reverse_channels()
    {
@@ -574,6 +670,20 @@ private:
          unsigned char tmp = *(it + 0);
          *(it + 0) = *(it + 2);
          *(it + 2) = tmp;
+      }
+   }
+
+   void clamp(double& v, const double& lower_range, const double& upper_range)
+   {
+      if (v < lower_range)
+      {
+          v = lower_range;
+          return;
+      }
+      else if (v >  upper_range)
+      {
+         v = upper_range;
+         return;
       }
    }
 
@@ -682,7 +792,7 @@ inline void read_bih(std::ifstream& stream,bitmap_information_header& bih)
    }
 }
 
-void write_bih(std::ofstream& stream, const bitmap_information_header& bih)
+inline void write_bih(std::ofstream& stream, const bitmap_information_header& bih)
 {
    if(big_endian())
    {
@@ -925,8 +1035,8 @@ const rgb_store color_map[1000] = {
 };
 
 
-void rgb_to_ycbcr(const unsigned int& length, double* red, double* green, double* blue,
-                                              double* y,   double* cb,    double* cr)
+inline void rgb_to_ycbcr(const unsigned int& length, double* red, double* green, double* blue,
+                                                     double* y,   double* cb,    double* cr)
 {
    unsigned int i = 0;
    while (i < length)
@@ -940,8 +1050,8 @@ void rgb_to_ycbcr(const unsigned int& length, double* red, double* green, double
    }
 }
 
-void ycbcr_to_rgb(const unsigned int& length, double* y,   double* cb,    double* cr,
-                                              double* red, double* green, double* blue)
+inline void ycbcr_to_rgb(const unsigned int& length, double* y,   double* cb,    double* cr,
+                                                     double* red, double* green, double* blue)
 {
    unsigned int i = 0;
    while (i < length)
