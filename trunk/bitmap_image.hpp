@@ -29,6 +29,7 @@
 #include <limits>
 #include <cmath>
 
+
 struct bitmap_file_header
 {
    unsigned short type;
@@ -278,9 +279,9 @@ public:
       return true;
    }
 
-   inline unsigned int width()  { return width_;  }
-   inline unsigned int height() { return height_; }
-   inline unsigned int bytes_per_pixel() { return bytes_per_pixel_; }
+   inline unsigned int width()  const { return width_;  }
+   inline unsigned int height() const { return height_; }
+   inline unsigned int bytes_per_pixel() const { return bytes_per_pixel_; }
 
    inline void setwidth_height(const unsigned int width,
                                const unsigned int height,
@@ -498,6 +499,14 @@ public:
       }
    }
 
+   void export_color_plane(const color_plane color, unsigned char* image)
+   {
+      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); ++image, it += bytes_per_pixel_)
+      {
+         (*image) = (*it);
+      }
+   }
+
    void export_response_image(const color_plane color, double* response_image)
    {
       unsigned int offset = 0;
@@ -525,7 +534,7 @@ public:
       }
    }
 
-   void export_rgb(double* red, double* green, double* blue)
+   void export_rgb(double* red, double* green, double* blue) const
    {
       if (bgr_mode != channel_mode_) return;
       for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
@@ -576,6 +585,155 @@ public:
       }
    }
 
+   void subsample(bitmap_image& dest)
+   {
+      /*
+         Half sub-sample of original image.
+      */
+      unsigned int w = 0;
+      unsigned int h = 0;
+
+      bool odd_width = false;
+      bool odd_height = false;
+
+      if (0 == (width_ % 2))
+         w = width_ / 2;
+      else
+      {
+         w = 1 + (width_ / 2);
+         odd_width = true;
+      }
+
+      if (0 == (height_ % 2))
+         h = height_ / 2;
+      else
+      {
+         h = 1 + (height_ / 2);
+         odd_height = true;
+      }
+      unsigned int horizontal_upper = (odd_width)  ? w - 1 : w;
+      unsigned int vertical_upper   = (odd_height) ? h - 1 : h;
+
+      dest.setwidth_height(w,h);
+      dest.clear();
+
+            unsigned char* s_it[3];
+      const unsigned char*  it1[3];
+      const unsigned char*  it2[3];
+
+      s_it[0] = dest.data_ + 0;
+      s_it[1] = dest.data_ + 1;
+      s_it[2] = dest.data_ + 2;
+
+      it1[0] = data_ + 0;
+      it1[1] = data_ + 1;
+      it1[2] = data_ + 2;
+
+      it2[0] = data_ + row_increment_ + 0;
+      it2[1] = data_ + row_increment_ + 1;
+      it2[2] = data_ + row_increment_ + 2;
+
+      unsigned int total = 0;
+      for(unsigned int j = 0; j < vertical_upper; ++j)
+      {
+         for (unsigned int i = 0; i < horizontal_upper; ++i)
+         {
+            for(unsigned int k = 0; k < bytes_per_pixel_; s_it[k] += bytes_per_pixel_, ++k)
+            {
+               total = 0;
+               total += *(it1[k]); it1[k] += bytes_per_pixel_;
+               total += *(it1[k]); it1[k] += bytes_per_pixel_;
+               total += *(it2[k]); it2[k] += bytes_per_pixel_;
+               total += *(it2[k]); it2[k] += bytes_per_pixel_;
+               *(s_it[k]) = (total >> 2);
+            }
+         }
+         if (odd_width)
+         {
+            for(unsigned int k = 0; k < bytes_per_pixel_; s_it[k] += bytes_per_pixel_, ++k)
+            {
+               total = 0;
+               total += *(it1[k]); it1[k] += bytes_per_pixel_;
+               total += *(it2[k]); it2[k] += bytes_per_pixel_;
+               *(s_it[k]) = (total >> 1);
+            }
+         }
+
+         for(unsigned int k = 0; k < bytes_per_pixel_; it1[k] += row_increment_, ++k);
+
+         if (j != (vertical_upper - 1))
+         {
+            for(unsigned int k = 0; k < bytes_per_pixel_; it2[k] += row_increment_, ++k);
+         }
+      }
+      if (odd_height)
+      {
+         for (unsigned int i = 0; i < horizontal_upper; ++i)
+         {
+            for(unsigned int k = 0; k < bytes_per_pixel_; s_it[k] += bytes_per_pixel_, ++k)
+            {
+               total = 0;
+               total += *(it1[k]); it1[k] += bytes_per_pixel_;
+               total += *(it2[k]); it2[k] += bytes_per_pixel_;
+               *(s_it[k]) = (total >> 1);
+            }
+         }
+         if (odd_width)
+         {
+            for(unsigned int k = 0; k < bytes_per_pixel_; ++k)
+            {
+               (*(s_it[k])) = *(it1[k]);
+            }
+         }
+      }
+   }
+
+   void upsample(bitmap_image& dest)
+   {
+      /*
+         2x up-sample of original image.
+      */
+
+      dest.setwidth_height(2 * width_ ,2 * height_);
+      dest.clear();
+
+      const unsigned char* s_it[3];
+            unsigned char*  it1[3];
+            unsigned char*  it2[3];
+
+      s_it[0] = data_ + 0;
+      s_it[1] = data_ + 1;
+      s_it[2] = data_ + 2;
+
+      it1[0] = dest.data_ + 0;
+      it1[1] = dest.data_ + 1;
+      it1[2] = dest.data_ + 2;
+
+      it2[0] = dest.data_ + dest.row_increment_ + 0;
+      it2[1] = dest.data_ + dest.row_increment_ + 1;
+      it2[2] = dest.data_ + dest.row_increment_ + 2;
+
+      for(unsigned int j = 0; j < height_; ++j)
+      {
+         for (unsigned int i = 0; i < width_; ++i)
+         {
+            for(unsigned int k = 0; k < bytes_per_pixel_; s_it[k] += bytes_per_pixel_, ++k)
+            {
+               *(it1[k]) = *(s_it[k]); it1[k] += bytes_per_pixel_;
+               *(it1[k]) = *(s_it[k]); it1[k] += bytes_per_pixel_;
+
+               *(it2[k]) = *(s_it[k]); it2[k] += bytes_per_pixel_;
+               *(it2[k]) = *(s_it[k]); it2[k] += bytes_per_pixel_;
+            }
+         }
+         for(unsigned int k = 0; k < bytes_per_pixel_; ++k)
+         {
+            it1[k] += dest.row_increment_;
+            it2[k] += dest.row_increment_;
+         }
+      }
+   }
+
    double psnr(const bitmap_image& image)
    {
       if ((image.width_ != width_) || (image.height_ != height_))
@@ -607,6 +765,33 @@ public:
    }
 
 private:
+
+   unsigned int offset(const color_plane color)
+   {
+      switch(channel_mode_)
+      {
+         case rgb_mode : {
+                            switch (color)
+                            {
+                               case red_plane   : return 0;
+                               case green_plane : return 1;
+                               case blue_plane  : return 2;
+                               default          : std::numeric_limits<unsigned int>::max();
+                            }
+                         }
+
+         case bgr_mode : {
+                            switch (color)
+                            {
+                               case red_plane   : return 2;
+                               case green_plane : return 1;
+                               case blue_plane  : return 0;
+                               default          : std::numeric_limits<unsigned int>::max();
+                            }
+                         }
+         default : std::numeric_limits<unsigned int>::max();
+      }
+   }
 
    void create_bitmap()
    {
@@ -1070,6 +1255,114 @@ inline void ycbcr_to_rgb(const unsigned int& length, double* y,   double* cb,   
    }
 }
 
+inline void subsample(const unsigned int& width,
+                      const unsigned int& height,
+                      const double* source,
+                      unsigned int& w,
+                      unsigned int& h,
+                      double** dest)
+{
+   /*
+      Single channel.
+   */
+
+   w = 0;
+   h = 0;
+
+   bool  odd_width = false;
+   bool odd_height = false;
+
+   if (0 == (width % 2))
+      w = width / 2;
+   else
+   {
+      w = 1 + (width / 2);
+      odd_width = true;
+   }
+
+   if (0 == (height % 2))
+      h = height / 2;
+   else
+   {
+      h = 1 + (height / 2);
+      odd_height = true;
+   }
+   unsigned int horizontal_upper = (odd_width)  ? w - 1 : w;
+   unsigned int vertical_upper   = (odd_height) ? h - 1 : h;
+
+   *dest = new double[w * h];
+
+   double* s_it = *dest;
+   const double* it1 = source;
+   const double* it2 = source + width;
+
+   for(unsigned int j = 0; j < vertical_upper; ++j)
+   {
+      for (unsigned int i = 0; i < horizontal_upper; ++i, ++s_it)
+      {
+          (*s_it)  = *(it1++);
+          (*s_it) += *(it1++);
+          (*s_it) += *(it2++);
+          (*s_it) += *(it2++);
+          (*s_it) /=  4.0;
+      }
+      if (odd_width)
+      {
+         (*(s_it++)) = ( (*it1++) + (*it2++) ) / 2.0;
+      }
+
+      it1 += width;
+      if (j != (vertical_upper -1))
+      {
+         it2 += width;
+      }
+   }
+   if (odd_height)
+   {
+      for (unsigned int i = 0; i < horizontal_upper; ++i, ++s_it)
+      {
+         (*s_it) = ( (*(it1++)) + (*(it1++))  ) / 2.0;
+      }
+      if (odd_width)
+      {
+         (*(s_it++)) = (*it1);
+      }
+   }
+}
+
+inline void upsample(const unsigned int& width,
+                     const unsigned int& height,
+                     const double* source,
+                     unsigned int& w,
+                     unsigned int& h,
+                     double** dest)
+{
+   /*
+      Single channel.
+   */
+
+   w = 2 * width;
+   h = 2 * height;
+
+   *dest = new double[w * h];
+
+   const double* s_it = source;
+         double*  it1 = *dest;
+         double*  it2 = *dest + w;
+
+   for(unsigned int j = 0; j < height; ++j)
+   {
+      for (unsigned int i = 0; i < width; ++i, ++s_it)
+      {
+          *(it1++) = (*s_it);
+          *(it1++) = (*s_it);
+          *(it2++) = (*s_it);
+          *(it2++) = (*s_it);
+      }
+      it1 += w;
+      it2 += w;
+   }
+}
 
 
 #endif
