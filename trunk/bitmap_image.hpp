@@ -230,7 +230,6 @@ public:
       return true;
    }
 
-
    inline bool copy_from(const bitmap_image& source_image,
                          const unsigned int& x_offset,
                          const unsigned int& y_offset)
@@ -266,15 +265,12 @@ public:
          dest_image.setwidth_height(width,height);
       }
 
-      for(unsigned int r = 0; r < (y + height); ++r)
+      for(unsigned int r = 0; r < height; ++r)
       {
-         unsigned char* it1     = row(r) + x * bytes_per_pixel_;
-         unsigned char* it2     = dest_image.row(r + y) + x * bytes_per_pixel_;
-         unsigned char* it2_end = it2 + 3 * (x + width);
-         for(; it2 != it2_end; ++it1, ++it2)
-         {
-            *it2 = *it1;
-         }
+         unsigned char* it1     = row(r + y) + x * bytes_per_pixel_;
+         unsigned char* it1_end = it1 + (width * bytes_per_pixel_);
+         unsigned char* it2     = dest_image.row(r);
+         for(; it1 != it1_end; *it2 = *it1, ++it1, ++it2);
       }
       return true;
    }
@@ -282,6 +278,7 @@ public:
    inline unsigned int width()  const { return width_;  }
    inline unsigned int height() const { return height_; }
    inline unsigned int bytes_per_pixel() const { return bytes_per_pixel_; }
+   inline unsigned int pixel_count() const { return width_ *  height_; }
 
    inline void setwidth_height(const unsigned int width,
                                const unsigned int height,
@@ -334,7 +331,7 @@ public:
       char padding_data[4] = {0x0,0x0,0x0,0x0};
       for (unsigned int i = 0; i < height_; i++)
       {
-         unsigned char* data_ptr = data_ + (bytes_per_pixel_ * width_ * (height_ - i - 1));
+         unsigned char* data_ptr = data_ + (row_increment_ /*bytes_per_pixel_ * width_*/ * (height_ - i - 1));
          stream.write(reinterpret_cast<char*>(data_ptr),sizeof(unsigned char) * bytes_per_pixel_ * width_);
          stream.write(padding_data,padding);
       }
@@ -355,7 +352,10 @@ public:
 
    inline void set_all_ith_channels(const unsigned int& channel, const unsigned char& value)
    {
-      for(unsigned char* it = (data_ + channel); it < (data_ + length_); it += bytes_per_pixel_) { *it = value; }
+      for(unsigned char* it = (data_ + channel); it < (data_ + length_); it += bytes_per_pixel_)
+      {
+         *it = value;
+      }
    }
 
    inline void set_channel(const color_plane color,const unsigned char& value)
@@ -368,7 +368,10 @@ public:
          case blue_plane  : offset = 0; break;
          default          : return;
       }
-      for(unsigned char* it = (data_ + offset); it < (data_ + length_); it += bytes_per_pixel_) { *it = value; }
+      for(unsigned char* it = (data_ + offset); it < (data_ + length_); it += bytes_per_pixel_)
+      {
+         *it = value;
+      }
    }
 
    inline void ror_channel(const color_plane color, const unsigned int& ror)
@@ -405,6 +408,16 @@ public:
          *(it + 1) = g_value;
          *(it + 2) = r_value;
       }
+   }
+
+   inline void invert_color_planes()
+   {
+      for(unsigned char* it = data_; it < (data_ + length_); *it = ~(*it), ++it);
+   }
+
+   inline void add_to_color_plane(const color_plane color,const unsigned char& value)
+   {
+      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); *it += value, it += bytes_per_pixel_);
    }
 
    inline void convert_to_grayscale()
@@ -507,6 +520,26 @@ public:
       }
    }
 
+   void export_color_plane(const color_plane color, bitmap_image& image)
+   {
+      if ((width_ != image.width_) || (height_ != image.height_))
+      {
+         image.setwidth_height(width_,height_);
+      }
+
+      image.clear();
+      unsigned char* it1     = (data_ + offset(color));
+      unsigned char* it1_end = (data_ + length_);
+      unsigned char* it2     = (image.data_ + offset(color));
+
+      while(it1 < (data_ + length_))
+      {
+         (*it2) = (*it1);
+         it1 += bytes_per_pixel_;
+         it2 += bytes_per_pixel_;
+      }
+   }
+
    void export_response_image(const color_plane color, double* response_image)
    {
       unsigned int offset = 0;
@@ -553,14 +586,13 @@ public:
          double blue  = (1.0 * (*(it++)));
          double green = (1.0 * (*(it++)));
          double red   = (1.0 * (*(it++)));
-
-         ( *y) =   16.0 + (1.0/256.0) * (  65.738 * red + 129.057 * green +  25.064 * blue);
-         (*cb) =  128.0 + (1.0/256.0) * (- 37.945 * red -  74.494 * green + 112.439 * blue);
-         (*cr) =  128.0 + (1.0/256.0) * ( 112.439 * red -  94.154 * green -  18.285 * blue);
+         ( *y) = clamp( 16.0 + (1.0/256.0) * (  65.738 * red + 129.057 * green +  25.064 * blue),1.0,254);
+         (*cb) = clamp(128.0 + (1.0/256.0) * (- 37.945 * red -  74.494 * green + 112.439 * blue),1.0,254);
+         (*cr) = clamp(128.0 + (1.0/256.0) * ( 112.439 * red -  94.154 * green -  18.285 * blue),1.0,254);
       }
    }
 
-   void import_from_rgb(double* red, double* green, double* blue)
+   void import_rgb(double* red, double* green, double* blue)
    {
       if (bgr_mode != channel_mode_) return;
       for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
@@ -571,7 +603,7 @@ public:
       }
    }
 
-   void import_from_ycbcr(double* y, double* cb, double* cr)
+   void import_ycbcr(double* y, double* cb, double* cr)
    {
       if (bgr_mode != channel_mode_) return;
       for(unsigned char* it = data_; it < (data_ + length_); ++y, ++cb, ++cr)
@@ -579,9 +611,9 @@ public:
          double y_  =  (*y);
          double cb_ = (*cb);
          double cr_ = (*cr);
-         *(it++) = static_cast<unsigned char>((298.082 * y_ + 516.412 * cb_                 ) / 256.000 - 276.836);
-         *(it++) = static_cast<unsigned char>((298.082 * y_ - 100.291 * cb_ - 208.120 * cr_ ) / 256.000 + 135.576);
-         *(it++) = static_cast<unsigned char>((298.082 * y_                 + 408.583 * cr_ ) / 256.000 - 222.921);
+         *(it++) = static_cast<unsigned char>(clamp((298.082 * y_ + 516.412 * cb_                 ) / 256.000 - 276.836,0.0,255.0));
+         *(it++) = static_cast<unsigned char>(clamp((298.082 * y_ - 100.291 * cb_ - 208.120 * cr_ ) / 256.000 + 135.576,0.0,255.0));
+         *(it++) = static_cast<unsigned char>(clamp((298.082 * y_                 + 408.583 * cr_ ) / 256.000 - 222.921,0.0,255.0));
       }
    }
 
@@ -645,7 +677,7 @@ public:
                total += *(it1[k]); it1[k] += bytes_per_pixel_;
                total += *(it2[k]); it2[k] += bytes_per_pixel_;
                total += *(it2[k]); it2[k] += bytes_per_pixel_;
-               *(s_it[k]) = (total >> 2);
+               *(s_it[k]) = static_cast<unsigned char>(total >> 2);
             }
          }
          if (odd_width)
@@ -655,7 +687,7 @@ public:
                total = 0;
                total += *(it1[k]); it1[k] += bytes_per_pixel_;
                total += *(it2[k]); it2[k] += bytes_per_pixel_;
-               *(s_it[k]) = (total >> 1);
+               *(s_it[k]) = static_cast<unsigned char>(total >> 1);
             }
          }
 
@@ -675,7 +707,7 @@ public:
                total = 0;
                total += *(it1[k]); it1[k] += bytes_per_pixel_;
                total += *(it2[k]); it2[k] += bytes_per_pixel_;
-               *(s_it[k]) = (total >> 1);
+               *(s_it[k]) = static_cast<unsigned char>(total >> 1);
             }
          }
          if (odd_width)
@@ -789,7 +821,7 @@ private:
                                default          : std::numeric_limits<unsigned int>::max();
                             }
                          }
-         default : std::numeric_limits<unsigned int>::max();
+         default       : return std::numeric_limits<unsigned int>::max();
       }
    }
 
@@ -798,6 +830,7 @@ private:
       length_ = width_ * height_ * bytes_per_pixel_;
       row_increment_ = width_ * bytes_per_pixel_;
       data_ = new unsigned char[length_];
+      valid_ = true;
    }
 
    void load_bitmap()
@@ -845,6 +878,8 @@ private:
          stream.read(reinterpret_cast<char*>(data_ptr),sizeof(char) * bytes_per_pixel_ * width_);
          stream.read(padding_data,padding);
       }
+
+      valid_ = true;
    }
 
    void reverse_channels()
@@ -858,20 +893,21 @@ private:
       }
    }
 
-   void clamp(double& v, const double& lower_range, const double& upper_range)
+   double clamp(const double& v, const double& lower_range, const double& upper_range)
    {
       if (v < lower_range)
       {
-          v = lower_range;
-          return;
+          return lower_range;
       }
       else if (v >  upper_range)
       {
-         v = upper_range;
-         return;
+         return upper_range;
       }
+      else
+         return v;
    }
 
+   bool           valid_;
    std::string    file_name_;
    unsigned char* data_;
    unsigned int   bytes_per_pixel_;
@@ -1269,7 +1305,7 @@ inline void subsample(const unsigned int& width,
    w = 0;
    h = 0;
 
-   bool  odd_width = false;
+   bool odd_width = false;
    bool odd_height = false;
 
    if (0 == (width % 2))
@@ -1347,8 +1383,8 @@ inline void upsample(const unsigned int& width,
    *dest = new double[w * h];
 
    const double* s_it = source;
-         double*  it1 = *dest;
-         double*  it2 = *dest + w;
+         double* it1 = *dest;
+         double* it2 = *dest + w;
 
    for(unsigned int j = 0; j < height; ++j)
    {
@@ -1363,6 +1399,5 @@ inline void upsample(const unsigned int& width,
       it2 += w;
    }
 }
-
 
 #endif
