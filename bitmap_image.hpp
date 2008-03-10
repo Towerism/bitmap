@@ -422,15 +422,26 @@ public:
 
    inline void convert_to_grayscale()
    {
-      for(unsigned char* it = data_; it < (data_ + length_); it += bytes_per_pixel_)
+      double r_scaler = 0.299;
+      double g_scaler = 0.587;
+      double b_scaler = 0.114;
+
+      if (rgb_mode == channel_mode_)
+      {
+         double tmp = r_scaler;
+         r_scaler =  b_scaler;
+         b_scaler = tmp;
+      }
+
+      for(unsigned char* it = data_; it < (data_ + length_);)
       {
          unsigned char gray_value = static_cast<unsigned char>(
-         (0.299 * (*(it + 2))) +
-         (0.587 * (*(it + 1))) +
-         (0.114 * (*(it + 0))) );
-         *(it + 0) = gray_value;
-         *(it + 1) = gray_value;
-         *(it + 2) = gray_value;
+         (r_scaler * (*(it + 2))) +
+         (g_scaler * (*(it + 1))) +
+         (b_scaler * (*(it + 0))) );
+         *(it++) = gray_value;
+         *(it++) = gray_value;
+         *(it++) = gray_value;
       }
    }
 
@@ -578,6 +589,28 @@ public:
       }
    }
 
+   void export_rgb(float* red, float* green, float* blue) const
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         (*blue)  = (1.0f * (*(it++))) / 256.0f;
+         (*green) = (1.0f * (*(it++))) / 256.0f;
+         (*red)   = (1.0f * (*(it++))) / 256.0f;
+      }
+   }
+
+   void export_rgb(unsigned char* red, unsigned char* green, unsigned char* blue) const
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         (*blue)  = *(it++);
+         (*green) = *(it++);
+         (*red)   = *(it++);
+      }
+   }
+
    void export_ycbcr(double* y, double* cb, double* cr)
    {
       if (bgr_mode != channel_mode_) return;
@@ -600,6 +633,28 @@ public:
          *(it++) = static_cast<unsigned char>(256.0 * (*blue) );
          *(it++) = static_cast<unsigned char>(256.0 * (*green));
          *(it++) = static_cast<unsigned char>(256.0 * (*red)  );
+      }
+   }
+
+   void import_rgb(float* red, float* green, float* blue)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         *(it++) = static_cast<unsigned char>(256.0f * (*blue) );
+         *(it++) = static_cast<unsigned char>(256.0f * (*green));
+         *(it++) = static_cast<unsigned char>(256.0f * (*red)  );
+      }
+   }
+
+   void import_rgb(unsigned char* red, unsigned char* green, unsigned char* blue)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         *(it++) = (*blue );
+         *(it++) = (*green);
+         *(it++) = (*red  );
       }
    }
 
@@ -796,8 +851,6 @@ public:
       }
    }
 
-private:
-
    unsigned int offset(const color_plane color)
    {
       switch(channel_mode_)
@@ -824,6 +877,8 @@ private:
          default       : return std::numeric_limits<unsigned int>::max();
       }
    }
+
+private:
 
    void create_bitmap()
    {
@@ -1397,6 +1452,36 @@ inline void upsample(const unsigned int& width,
       }
       it1 += w;
       it2 += w;
+   }
+}
+
+void checkered_pattern(const unsigned int x_width,
+                       const unsigned int y_width,
+                       const unsigned char value,
+                       const bitmap_image::color_plane color,
+                             bitmap_image& image)
+{
+   if ((x_width >= image.width()) || (y_width >= image.height()))
+   {
+      return;
+   }
+
+   bool setter_x = false;
+   bool setter_y = true;
+
+   for(unsigned int y = 0; y < image.height(); ++y)
+   {
+      if (0 == (y % y_width)) setter_y = !setter_y;
+
+      unsigned char* row = image.row(y) + image.offset(color);
+      for(unsigned int x = 0; x < image.width(); ++x, row += image.bytes_per_pixel())
+      {
+         if (0 == (x % x_width)) setter_x = !setter_x;
+         if (setter_x && !setter_y)
+         {
+            *row = value;
+         }
+      }
    }
 }
 
