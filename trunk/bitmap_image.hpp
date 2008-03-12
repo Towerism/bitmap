@@ -28,6 +28,7 @@
 #include <iterator>
 #include <limits>
 #include <cmath>
+#include <cstdlib>
 
 
 struct bitmap_file_header
@@ -543,7 +544,7 @@ public:
       unsigned char* it1_end = (data_ + length_);
       unsigned char* it2     = (image.data_ + offset(color));
 
-      while(it1 < (data_ + length_))
+      while(it1 < it1_end)
       {
          (*it2) = (*it1);
          it1 += bytes_per_pixel_;
@@ -619,9 +620,31 @@ public:
          double blue  = (1.0 * (*(it++)));
          double green = (1.0 * (*(it++)));
          double red   = (1.0 * (*(it++)));
-         ( *y) = clamp( 16.0 + (1.0/256.0) * (  65.738 * red + 129.057 * green +  25.064 * blue),1.0,254);
-         (*cb) = clamp(128.0 + (1.0/256.0) * (- 37.945 * red -  74.494 * green + 112.439 * blue),1.0,254);
-         (*cr) = clamp(128.0 + (1.0/256.0) * ( 112.439 * red -  94.154 * green -  18.285 * blue),1.0,254);
+         ( *y) = clamp<double>( 16.0 + (1.0/256.0) * (  65.738 * red + 129.057 * green +  25.064 * blue),1.0,254);
+         (*cb) = clamp<double>(128.0 + (1.0/256.0) * (- 37.945 * red -  74.494 * green + 112.439 * blue),1.0,254);
+         (*cr) = clamp<double>(128.0 + (1.0/256.0) * ( 112.439 * red -  94.154 * green -  18.285 * blue),1.0,254);
+      }
+   }
+
+   void export_rgb_normal(double* red, double* green, double* blue) const
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         (*blue)  = (1.0 * (*(it++)));
+         (*green) = (1.0 * (*(it++)));
+         (*red)   = (1.0 * (*(it++)));
+      }
+   }
+
+   void export_rgb_normal(float* red, float* green, float* blue) const
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         (*blue)  = (1.0f * (*(it++)));
+         (*green) = (1.0f * (*(it++)));
+         (*red)   = (1.0f * (*(it++)));
       }
    }
 
@@ -669,6 +692,50 @@ public:
          *(it++) = static_cast<unsigned char>(clamp((298.082 * y_ + 516.412 * cb_                 ) / 256.000 - 276.836,0.0,255.0));
          *(it++) = static_cast<unsigned char>(clamp((298.082 * y_ - 100.291 * cb_ - 208.120 * cr_ ) / 256.000 + 135.576,0.0,255.0));
          *(it++) = static_cast<unsigned char>(clamp((298.082 * y_                 + 408.583 * cr_ ) / 256.000 - 222.921,0.0,255.0));
+      }
+   }
+
+   void import_rgb_clamped(double* red, double* green, double* blue)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         *(it++) = static_cast<unsigned char>(clamp<double>(256.0 * (*blue) ,0.0,255.0));
+         *(it++) = static_cast<unsigned char>(clamp<double>(256.0 * (*green),0.0,255.0));
+         *(it++) = static_cast<unsigned char>(clamp<double>(256.0 * (*red)  ,0.0,255.0));
+      }
+   }
+
+   void import_rgb_clamped(float* red, float* green, float* blue)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         *(it++) = static_cast<unsigned char>(clamp<double>(256.0f * (*blue) ,0.0,255.0));
+         *(it++) = static_cast<unsigned char>(clamp<double>(256.0f * (*green),0.0,255.0));
+         *(it++) = static_cast<unsigned char>(clamp<double>(256.0f * (*red)  ,0.0,255.0));
+      }
+   }
+
+   void import_rgb_normal(double* red, double* green, double* blue)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         *(it++) = static_cast<unsigned char>(*blue );
+         *(it++) = static_cast<unsigned char>(*green);
+         *(it++) = static_cast<unsigned char>(*red  );
+      }
+   }
+
+   void import_rgb_normal(float* red, float* green, float* blue)
+   {
+      if (bgr_mode != channel_mode_) return;
+      for(unsigned char* it = data_; it < (data_ + length_); ++red, ++green, ++blue)
+      {
+         *(it++) = static_cast<unsigned char>(*blue );
+         *(it++) = static_cast<unsigned char>(*green);
+         *(it++) = static_cast<unsigned char>(*red  );
       }
    }
 
@@ -821,6 +888,32 @@ public:
       }
    }
 
+   void blend(const double& alpha, const bitmap_image& image)
+   {
+      if ((image.width_ != width_) || (image.height_ != height_))
+      {
+         return;
+      }
+
+      if ((alpha < 0.0) || (alpha > 1.0))
+      {
+         return;
+      }
+
+      unsigned char* it1     = data_;
+      unsigned char* it1_end = data_ + length_;
+      unsigned char* it2     = image.data_;
+
+      double alpha_compliment = 1.0 - alpha;
+
+      while(it1 != it1_end)
+      {
+         *(it1) = static_cast<unsigned char>((alpha * (*it2)) + (alpha_compliment * (*it1)));
+         *(it1++);
+         *(it2++);
+      }
+   }
+
    double psnr(const bitmap_image& image)
    {
       if ((image.width_ != width_) || (image.height_ != height_))
@@ -948,16 +1041,13 @@ private:
       }
    }
 
-   double clamp(const double& v, const double& lower_range, const double& upper_range)
+   template<typename T>
+   T clamp(const T& v, const T& lower_range, const T& upper_range)
    {
       if (v < lower_range)
-      {
           return lower_range;
-      }
       else if (v >  upper_range)
-      {
          return upper_range;
-      }
       else
          return v;
    }
@@ -1482,6 +1572,45 @@ void checkered_pattern(const unsigned int x_width,
             *row = value;
          }
       }
+   }
+}
+
+void plasma(bitmap_image& image,
+            const double& x,     const double& y,
+            const double& width, const double& height,
+            const double& c1,    const double& c2,
+            const double& c3,    const double& c4,
+            const double& roughness = 3.0)
+{
+   double corner1 = 0.0;
+   double corner2 = 0.0;
+   double corner3 = 0.0;
+   double corner4 = 0.0;
+   double center  = 0.0;
+   double half_width  = ( width / 2.0);
+   double half_height = (height / 2.0);
+
+   if ((width >= 1.0) || (height >= 1.0))
+   {
+      corner1 = (c1 + c2) / 2.0;
+      corner2 = (c2 + c3) / 2.0;
+      corner3 = (c3 + c4) / 2.0;
+      corner4 = (c4 + c1) / 2.0;
+      center  = (c1 + c2 + c3 + c4) / 4.0 +
+                ((1.0 * ::rand() /(1.0 * RAND_MAX))  - 0.5) * // should use a better rng
+                ((1.0 * half_width + half_height) / (image.width() + image.height()) * roughness);
+
+      center = std::min(std::max(0.0,center),1.0);
+
+      plasma(image, x,                            y, half_width, half_height,      c1, corner1,  center, corner4);
+      plasma(image, x + half_width,               y, half_width, half_height, corner1,      c2, corner2,  center);
+      plasma(image, x + half_width, y + half_height, half_width, half_height,  center, corner2,      c3, corner3);
+      plasma(image, x,              y + half_height, half_width, half_height, corner4,  center, corner3,      c4);
+   }
+   else
+   {
+      rgb_store color = color_map[static_cast<unsigned int>(1000.0 * ((c1 + c2 + c3 + c4) / 4.0)) % 1000];
+      image.set_pixel(static_cast<unsigned int>(x),static_cast<unsigned int>(y),color.red,color.green,color.blue);
    }
 }
 
