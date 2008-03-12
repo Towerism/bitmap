@@ -18,6 +18,8 @@
 
 #include <iostream>
 #include <string>
+#include <cstdlib>
+
 #include "bitmap_image.hpp"
 
 inline void test01()
@@ -239,6 +241,20 @@ inline void test13()
    }
 }
 
+inline void test14()
+{
+   bitmap_image image(1024,1024);
+   image.clear();
+
+   double c1 = 0.9;
+   double c2 = 0.5;
+   double c3 = 0.3;
+   double c4 = 0.7;
+
+   ::srand(0xA5AA5AA5);
+   plasma(image,0,0,image.width(),image.height(),c1,c2,c3,c4,3.0);
+   image.save_image("plasma.bmp");
+}
 
 int main(void)
 {
@@ -255,5 +271,6 @@ int main(void)
    test11();
    test12();
    test13();
+   test14();
    return 0;
 }
