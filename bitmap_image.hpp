@@ -888,7 +888,7 @@ public:
       }
    }
 
-   void blend(const double& alpha, const bitmap_image& image)
+   void alpha_blend(const double& alpha, const bitmap_image& image)
    {
       if ((image.width_ != width_) || (image.height_ != height_))
       {
