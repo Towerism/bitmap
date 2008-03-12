@@ -1582,6 +1582,8 @@ void plasma(bitmap_image& image,
             const double& c3,    const double& c4,
             const double& roughness = 3.0)
 {
+  // Note: c1,c2,c3,c4 -> [0.0,1.0]
+
    double corner1 = 0.0;
    double corner2 = 0.0;
    double corner3 = 0.0;
