@@ -256,6 +256,56 @@ inline void test14()
    image.save_image("plasma.bmp");
 }
 
+inline void test15()
+{
+   bitmap_image image("image.bmp");
+
+   double c1 = 0.9;
+   double c2 = 0.5;
+   double c3 = 0.3;
+   double c4 = 0.7;
+
+   bitmap_image plasma_image(image.width(),image.height());
+   plasma(plasma_image,0,0,plasma_image.width(),plasma_image.height(),c1,c2,c3,c4,3.0);
+
+   bitmap_image temp_image(image);
+
+   temp_image.alpha_blend(0.1, plasma_image);
+   temp_image.save_image("alpha_0.1.bmp");
+   temp_image = image;
+
+   temp_image.alpha_blend(0.2, plasma_image);
+   temp_image.save_image("alpha_0.2.bmp");
+   temp_image = image;
+
+   temp_image.alpha_blend(0.3, plasma_image);
+   temp_image.save_image("alpha_0.3.bmp");
+   temp_image = image;
+
+   temp_image.alpha_blend(0.4, plasma_image);
+   temp_image.save_image("alpha_0.4.bmp");
+   temp_image = image;
+
+   temp_image.alpha_blend(0.5, plasma_image);
+   temp_image.save_image("alpha_0.5.bmp");
+   temp_image = image;
+
+   temp_image.alpha_blend(0.6, plasma_image);
+   temp_image.save_image("alpha_0.6.bmp");
+   temp_image = image;
+
+   temp_image.alpha_blend(0.7, plasma_image);
+   temp_image.save_image("alpha_0.7.bmp");
+   temp_image = image;
+
+   temp_image.alpha_blend(0.8, plasma_image);
+   temp_image.save_image("alpha_0.8.bmp");
+   temp_image = image;
+
+   temp_image.alpha_blend(0.9, plasma_image);
+   temp_image.save_image("alpha_0.9.bmp");
+}
+
 int main(void)
 {
    test01();
@@ -272,5 +322,6 @@ int main(void)
    test12();
    test13();
    test14();
+   test15();
    return 0;
 }
