@@ -141,6 +141,7 @@ public:
 
    bitmap_image(const bitmap_image& image)
    : file_name_(image.file_name_),
+     data_(0),
      bytes_per_pixel_(3),
      width_(image.width_),
      height_(image.height_),
@@ -148,9 +149,7 @@ public:
      channel_mode_(bgr_mode)
    {
       create_bitmap();
-      unsigned char* it1 = data_;
-      const unsigned char* it2 = image.data_;
-      for(; it1 != data_ + length_; ++it1, ++it2) { *it1 = *it2; }
+      std::copy(image.data_, image.data_ + image.length_, data_);
    }
 
    ~bitmap_image()
@@ -158,9 +157,25 @@ public:
      delete [] data_;
    }
 
+   bitmap_image& operator = (const bitmap_image& image)
+   {
+      if (this != &image)
+      {
+         file_name_ = image.file_name_;
+         bytes_per_pixel_ = image.bytes_per_pixel_;
+         width_ = image.width_;
+         height_ = image.height_;
+         row_increment_ = 0;
+         channel_mode_ = image.channel_mode_;
+         create_bitmap();
+         std::copy(image.data_, image.data_ + image.length_, data_);
+      }
+      return *this;
+   }
+
    inline void clear(const unsigned char v = 0x00)
    {
-      for(unsigned char* it = data_; it != data_ + length_; *it = v, ++it);
+      std::fill(data_,data_ + length_,v);
    }
 
    inline unsigned char red_channel(const unsigned int x, const unsigned int y) const
@@ -225,9 +240,7 @@ public:
       {
          return false;
       }
-      unsigned char* it1 = data_;
-      unsigned char* it2 = image.data_;
-      for(; it1 != data_ + length_; ++it1, ++it2) { *it1 = *it2; }
+      std::copy(image.data_,image.data_ + image.length_,data_);
       return true;
    }
 
@@ -243,10 +256,7 @@ public:
          unsigned char* it1           = row(y + y_offset) + x_offset * bytes_per_pixel_;
          const unsigned char* it2     = source_image.row(y);
          const unsigned char* it2_end = it2 + source_image.width_ * bytes_per_pixel_;
-         for(; it2 != it2_end; ++it1, ++it2)
-         {
-            *it1 = *it2;
-         }
+         std::copy(it2,it2_end,it1);
       }
       return true;
    }
@@ -271,7 +281,7 @@ public:
          unsigned char* it1     = row(r + y) + x * bytes_per_pixel_;
          unsigned char* it1_end = it1 + (width * bytes_per_pixel_);
          unsigned char* it2     = dest_image.row(r);
-         for(; it1 != it1_end; *it2 = *it1, ++it1, ++it2);
+         std::copy(it1,it1_end,it2);
       }
       return true;
    }
@@ -291,7 +301,7 @@ public:
       create_bitmap();
       if (clear)
       {
-         for(unsigned char* it = data_; it != data_ + length_; ++it) { *it = 0x00; }
+         std::fill(data_,data_ + length_,0x00);
       }
    }
 
@@ -554,15 +564,7 @@ public:
 
    void export_response_image(const color_plane color, double* response_image)
    {
-      unsigned int offset = 0;
-      switch (color)
-      {
-         case red_plane   : offset = 2; break;
-         case green_plane : offset = 1; break;
-         case blue_plane  : offset = 0; break;
-         default          : return;
-      }
-      for(unsigned char* it = (data_ + offset); it < (data_ + length_); ++response_image, it += bytes_per_pixel_)
+      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); ++response_image, it += bytes_per_pixel_)
       {
          (*response_image) = (1.0 * (*it)) / 256.0;
       }
@@ -944,6 +946,26 @@ public:
       }
    }
 
+   void histogram(const color_plane color, double hist[256])
+   {
+      std::fill(hist,hist + 256,0.0);
+      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); it += bytes_per_pixel_)
+      {
+         ++hist[(*it)];
+      }
+   }
+
+   void histogram_normalized(const color_plane color, double hist[256])
+   {
+      histogram(color,hist);
+
+      std::fill(hist,hist + 256,0.0);
+      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); it += bytes_per_pixel_)
+      {
+         ++hist[(*it)];
+      }
+   }
+
    unsigned int offset(const color_plane color)
    {
       switch(channel_mode_)
@@ -977,6 +999,10 @@ private:
    {
       length_ = width_ * height_ * bytes_per_pixel_;
       row_increment_ = width_ * bytes_per_pixel_;
+      if (0 != data_)
+      {
+         delete[] data_;
+      }
       data_ = new unsigned char[length_];
       valid_ = true;
    }
@@ -1582,7 +1608,7 @@ void plasma(bitmap_image& image,
             const double& c3,    const double& c4,
             const double& roughness = 3.0)
 {
-  // Note: c1,c2,c3,c4 -> [0.0,1.0]
+   // Note: c1,c2,c3,c4 -> [0.0,1.0]
 
    double corner1 = 0.0;
    double corner2 = 0.0;
