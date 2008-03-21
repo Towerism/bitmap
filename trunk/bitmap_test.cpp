@@ -306,6 +306,37 @@ inline void test15()
    temp_image.save_image("alpha_0.9.bmp");
 }
 
+inline void test16()
+{
+   bitmap_image image(1024,1024);
+
+   double c1 = 0.9;
+   double c2 = 0.5;
+   double c3 = 0.3;
+   double c4 = 0.7;
+
+   plasma(image,0,0,image.width(),image.height(),c1,c2,c3,c4,3.0);
+
+   image_drawer draw(image);
+
+   draw.pen_width(3);
+   draw.pen_color(255,0,0);
+   draw.circle(image.width() / 2 + 100, image.height() / 2, 100);
+
+   draw.pen_width(2);
+   draw.pen_color(0,255,255);
+   draw.ellipse(image.width() / 2, image.height() / 2, 200,350);
+
+   draw.pen_width(1);
+   draw.pen_color(255,255,0);
+   draw.rectangle(50,50,250,400);
+
+   draw.pen_color(0,255,0);
+   draw.rectangle(450,250,850,880);
+
+   image.save_image("image_drawer.bmp");
+}
+
 int main(void)
 {
    test01();
@@ -323,5 +354,6 @@ int main(void)
    test13();
    test14();
    test15();
+   test16();
    return 0;
 }

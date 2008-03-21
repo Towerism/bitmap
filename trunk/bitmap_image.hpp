@@ -22,7 +22,6 @@
 #define INCLUDE_BITMAP_IMAGE_HPP
 
 #include <iostream>
-#include <vector>
 #include <string>
 #include <fstream>
 #include <iterator>
@@ -340,7 +339,7 @@ public:
 
       unsigned int padding = (4 - ((3 * width_) % 4)) % 4;
       char padding_data[4] = {0x0,0x0,0x0,0x0};
-      for (unsigned int i = 0; i < height_; i++)
+      for (unsigned int i = 0; i < height_; ++i)
       {
          unsigned char* data_ptr = data_ + (row_increment_ /*bytes_per_pixel_ * width_*/ * (height_ - i - 1));
          stream.write(reinterpret_cast<char*>(data_ptr),sizeof(unsigned char) * bytes_per_pixel_ * width_);
@@ -428,7 +427,7 @@ public:
 
    inline void add_to_color_plane(const color_plane color,const unsigned char& value)
    {
-      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); *it += value, it += bytes_per_pixel_);
+      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); (*it) += value, it += bytes_per_pixel_);
    }
 
    inline void convert_to_grayscale()
@@ -976,7 +975,7 @@ public:
                                case red_plane   : return 0;
                                case green_plane : return 1;
                                case blue_plane  : return 2;
-                               default          : std::numeric_limits<unsigned int>::max();
+                               default          : return std::numeric_limits<unsigned int>::max();
                             }
                          }
 
@@ -986,10 +985,22 @@ public:
                                case red_plane   : return 2;
                                case green_plane : return 1;
                                case blue_plane  : return 0;
-                               default          : std::numeric_limits<unsigned int>::max();
+                               default          : return std::numeric_limits<unsigned int>::max();
                             }
                          }
          default       : return std::numeric_limits<unsigned int>::max();
+      }
+   }
+
+   void incremental()
+   {
+      unsigned char current_color = 0;
+      for(unsigned char* it = data_; it < (data_ + length_);)
+      {
+         (*it++) = (current_color);
+         (*it++) = (current_color);
+         (*it++) = (current_color);
+         ++current_color;
       }
    }
 
@@ -1628,7 +1639,7 @@ void plasma(bitmap_image& image,
                 ((1.0 * ::rand() /(1.0 * RAND_MAX))  - 0.5) * // should use a better rng
                 ((1.0 * half_width + half_height) / (image.width() + image.height()) * roughness);
 
-      center = std::min(std::max(0.0,center),1.0);
+      center = std::min<double>(std::max<double>(0.0,center),1.0);
 
       plasma(image, x,                            y, half_width, half_height,      c1, corner1,  center, corner4);
       plasma(image, x + half_width,               y, half_width, half_height, corner1,      c2, corner2,  center);
@@ -1641,5 +1652,269 @@ void plasma(bitmap_image& image,
       image.set_pixel(static_cast<unsigned int>(x),static_cast<unsigned int>(y),color.red,color.green,color.blue);
    }
 }
+
+
+class image_drawer
+{
+public:
+
+   image_drawer(bitmap_image& image)
+   : image_(image),
+     pen_width_(1),
+     pen_color_red_(0),
+     pen_color_green_(0),
+     pen_color_blue_(0){};
+
+   void rectangle(int x1, int y1, int x2, int y2)
+   {
+      line_segment(x1,y1,x2,y1);
+      line_segment(x2,y1,x2,y2);
+      line_segment(x2,y2,x1,y2);
+      line_segment(x1,y2,x1,y1);
+   }
+
+   void triangle(int x1, int y1, int x2, int y2,int x3, int y3)
+   {
+      line_segment(x1,y1,x2,y2);
+      line_segment(x2,y2,x3,y3);
+      line_segment(x3,y3,x1,y1);
+   }
+
+   void quadix(int x1, int y1, int x2, int y2,int x3, int y3, int x4, int y4)
+   {
+      line_segment(x1,y1,x2,y2);
+      line_segment(x2,y2,x3,y3);
+      line_segment(x3,y3,x4,y4);
+      line_segment(x4,y4,x1,y1);
+   }
+
+   void line_segment(int x1, int y1, int x2, int y2)
+   {
+      int steep = 0;
+      int sx    = ((x2 - x1) > 0) ? 1 : -1;
+      int sy    = ((y2 - y1) > 0) ? 1 : -1;
+      int dx    = abs(x2 - x1);
+      int dy    = abs(y2 - y1);
+
+      if(dy > dx)
+      {
+         steep = x1;  x1 = y1;  y1 = steep;  /* swap x1 and y1 */
+         steep = dx;  dx = dy;  dy = steep;  /* swap dx and dy */
+         steep = sx;  sx = sy;  sy = steep;  /* swap sx and sy */
+         steep = 1;
+      }
+
+      int e = 2 * dy - dx;
+
+      for(int i = 0; i < dx; ++i)
+      {
+         if(steep)
+            plot_pen_pixel(y1,x1);
+         else
+            plot_pen_pixel(x1,y1);
+
+         while(e >= 0)
+         {
+            y1 += sy;
+            e -= (dx << 1);
+         }
+         x1 += sx;
+         e  += (dy << 1);
+      }
+      plot_pen_pixel(x2,y2);
+   }
+
+   void horiztonal_line_segment(int x1, int x2, int y)
+   {
+      if (x1 > x2)
+      {
+         std::swap(x1,x2);
+      }
+
+      for(int i = 0; i < (x2 - x1); ++i)
+      {
+         plot_pen_pixel(x1 +  i,y);
+      }
+   }
+
+   void vertical_line_segment(int y1, int y2, int x)
+   {
+      if (y1 > y2)
+      {
+         std::swap(y1,y2);
+      }
+
+      for(int i = 0; i < (y2 - y1); ++i)
+      {
+         plot_pen_pixel(x, y1 +  i);
+      }
+   }
+
+   void ellipse(int centerx, int centery, int a, int b)
+   {
+      int t1 = a * a;
+      int t2 = t1 << 1;
+      int t3 = t2 << 1;
+      int t4 = b * b;
+      int t5 = t4 << 1;
+      int t6 = t5 << 1;
+      int t7 = a * t5;
+      int t8 = t7 << 1;
+      int t9 = 0;
+
+      int d1 = t2 - t7 + (t4 >> 1);
+      int d2 = (t1 >> 1) - t8 + t5;
+      int x  = a;
+      int y  = 0;
+
+      int negative_tx = centerx - x;
+      int positive_tx = centerx + x;
+      int negative_ty = centery - y;
+      int positive_ty = centery + y;
+
+      while (d2 < 0)
+      {
+         plot_pen_pixel(positive_tx,positive_ty);
+         plot_pen_pixel(positive_tx,negative_ty);
+         plot_pen_pixel(negative_tx,positive_ty);
+         plot_pen_pixel(negative_tx,negative_ty);
+
+         ++y;
+
+         t9 = t9 + t3;
+
+         if (d1 < 0)
+         {
+            d1 = d1 + t9 + t2;
+            d2 = d2 + t9;
+         }
+         else
+         {
+            x--;
+            t8 = t8 - t6;
+            d1 = d1 + (t9 + t2 - t8);
+            d2 = d2 + (t9 + t5 - t8);
+            negative_tx = centerx - x;
+            positive_tx = centerx + x;
+         }
+
+         negative_ty = centery - y;
+         positive_ty = centery + y;
+      }
+
+      do
+      {
+         plot_pen_pixel(positive_tx,positive_ty);
+         plot_pen_pixel(positive_tx,negative_ty);
+         plot_pen_pixel(negative_tx,positive_ty);
+         plot_pen_pixel(negative_tx,negative_ty);
+
+         x--;
+         t8 = t8 - t6;
+
+         if (d2 < 0)
+         {
+            ++y;
+            t9 = t9 + t3;
+            d2 = d2 + (t9 + t5 - t8);
+            negative_ty = centery - y;
+            positive_ty = centery + y;
+         }
+         else
+            d2 = d2 + (t5 - t8);
+
+         negative_tx = centerx - x;
+         positive_tx = centerx + x;
+      }
+      while (x >= 0);
+   }
+
+   void circle(int centerx, int centery, int radius)
+   {
+      int x = 0;
+      int d = (1 - radius) << 1;
+
+      while(radius >= 0)
+      {
+         plot_pen_pixel(centerx + x,centery + radius);
+         plot_pen_pixel(centerx + x,centery - radius);
+         plot_pen_pixel(centerx - x,centery + radius);
+         plot_pen_pixel(centerx - x,centery - radius);
+
+         if ((d + radius) > 0)
+            d -= ((--radius) << 1) - 1;
+         if (x > d)
+            d += ((++x) << 1) + 1;
+      }
+   }
+
+   void plot_pen_pixel(int x, int y)
+   {
+      switch (pen_width_)
+      {
+         case 1  : plot_pixel(x,y);
+                   break;
+
+         case 2  : {
+                      plot_pixel(x    , y    );
+                      plot_pixel(x + 1, y    );
+                      plot_pixel(x + 1, y + 1);
+                      plot_pixel(x    , y + 1);
+                   }
+                   break;
+
+         case  3 : {
+                      plot_pixel(x    , y - 1);
+                      plot_pixel(x - 1, y - 1);
+                      plot_pixel(x + 1, y - 1);
+
+                      plot_pixel(x    , y    );
+                      plot_pixel(x - 1, y    );
+                      plot_pixel(x + 1, y    );
+
+                      plot_pixel(x    , y + 1);
+                      plot_pixel(x - 1, y + 1);
+                      plot_pixel(x + 1, y + 1);
+                   }
+                   break;
+
+         default : plot_pixel(x,y);
+                   break;
+      }
+   }
+
+   void plot_pixel(int x, int y)
+   {
+      image_.set_pixel(x,y,pen_color_red_,pen_color_green_,pen_color_blue_);
+   }
+
+   void pen_width(const unsigned int& width)
+   {
+      if ((width > 0) && (width < 4))
+      {
+         pen_width_ = width;
+      }
+   }
+
+   void pen_color(const unsigned char& red,
+                  const unsigned char& green,
+                  const unsigned char& blue)
+   {
+      pen_color_red_   = red;
+      pen_color_green_ = green;
+      pen_color_blue_  = blue;
+   }
+
+private:
+
+   image_drawer(const image_drawer& id);
+   image_drawer& operator =(const image_drawer& id);
+
+   bitmap_image& image_;
+   unsigned int  pen_width_;
+   unsigned char pen_color_red_;
+   unsigned char pen_color_green_;
+   unsigned char pen_color_blue_;
+};
 
 #endif
