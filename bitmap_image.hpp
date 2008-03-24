@@ -260,14 +260,14 @@ public:
       return true;
    }
 
-   inline bool region(const unsigned int x,
-                      const unsigned int y,
-                      const unsigned int width,
-                      const unsigned int height,
+   inline bool region(const unsigned int& x,
+                      const unsigned int& y,
+                      const unsigned int& width,
+                      const unsigned int& height,
                       bitmap_image& dest_image)
    {
-      if ((x + width) >= width_)   { return false; }
-      if ((y + height) >= height_) { return false; }
+      if ((x + width) > width_)   { return false; }
+      if ((y + height) > height_) { return false; }
 
       if ((dest_image.width_  < width_ ) ||
           (dest_image.height_ < height_))
@@ -283,6 +283,89 @@ public:
          std::copy(it1,it1_end,it2);
       }
       return true;
+   }
+
+   inline bool set_region(const unsigned int& x,
+                          const unsigned int& y,
+                          const unsigned int& width,
+                          const unsigned int& height,
+                          const unsigned char& value)
+   {
+      if ((x + width) > width_)   { return false; }
+      if ((y + height) > height_) { return false; }
+
+      for(unsigned int r = 0; r < height; ++r)
+      {
+         unsigned char* it     = row(r + y) + x * bytes_per_pixel_;
+         unsigned char* it_end = it + (width * bytes_per_pixel_);
+         std::fill(it,it_end,value);
+      }
+      return true;
+   }
+
+   inline bool set_region(const unsigned int& x,
+                          const unsigned int& y,
+                          const unsigned int& width,
+                          const unsigned int& height,
+                          const color_plane color,
+                          const unsigned char& value)
+   {
+      if ((x + width) > width_)   { return false; }
+      if ((y + height) > height_) { return false; }
+
+      for(unsigned int r = 0; r < height; ++r)
+      {
+         unsigned char* it     = row(r + y) + x * bytes_per_pixel_ + offset(color);
+         unsigned char* it_end = it + (width * bytes_per_pixel_);
+
+         while(it != it_end)
+         {
+            *it  = value;
+             it += bytes_per_pixel_;
+         }
+      }
+      return true;
+   }
+
+   inline bool set_region(const unsigned int& x,
+                          const unsigned int& y,
+                          const unsigned int& width,
+                          const unsigned int& height,
+                          const unsigned char& red,
+                          const unsigned char& green,
+                          const unsigned char& blue)
+   {
+      if ((x + width) > width_)   { return false; }
+      if ((y + height) > height_) { return false; }
+
+      for(unsigned int r = 0; r < height; ++r)
+      {
+         unsigned char* it     = row(r + y) + x * bytes_per_pixel_;
+         unsigned char* it_end = it + (width * bytes_per_pixel_);
+
+         while(it != it_end)
+         {
+            *(it++)  = blue;
+            *(it++)  = green;
+            *(it++)  = red;
+         }
+      }
+      return true;
+   }
+
+
+   void reflective_image(bitmap_image& image)
+   {
+      image.setwidth_height(3 * width_, 3 * height_,true);
+      image.copy_from(*this,width_,height_);
+      vertical_flip();
+      image.copy_from(*this,width_,0);
+      image.copy_from(*this,width_,2 * height_);
+      vertical_flip();
+      horizontal_flip();
+      image.copy_from(*this,0,height_);
+      image.copy_from(*this,2 * width_,height_);
+      horizontal_flip();
    }
 
    inline unsigned int width()  const { return width_;  }
@@ -370,15 +453,7 @@ public:
 
    inline void set_channel(const color_plane color,const unsigned char& value)
    {
-      unsigned int offset = 0;
-      switch (color)
-      {
-         case red_plane   : offset = 2; break;
-         case green_plane : offset = 1; break;
-         case blue_plane  : offset = 0; break;
-         default          : return;
-      }
-      for(unsigned char* it = (data_ + offset); it < (data_ + length_); it += bytes_per_pixel_)
+      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); it += bytes_per_pixel_)
       {
          *it = value;
       }
@@ -386,15 +461,7 @@ public:
 
    inline void ror_channel(const color_plane color, const unsigned int& ror)
    {
-      unsigned int offset = 0;
-      switch (color)
-      {
-         case red_plane   : offset = 2; break;
-         case green_plane : offset = 1; break;
-         case blue_plane  : offset = 0; break;
-         default          : return;
-      }
-      for(unsigned char* it = (data_ + offset); it < (data_ + length_); it += bytes_per_pixel_)
+      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); it += bytes_per_pixel_)
       {
          *it = static_cast<unsigned char>(((*it) >> ror) | ((*it) << (8 - ror)));
       }
@@ -927,7 +994,7 @@ public:
 
       double mse = 0.0;
 
-      while (it1 < (data_ + length_))
+      while (it1 != (data_ + length_))
       {
          double v = (static_cast<double>(*it1) - static_cast<double>(*it2));
          mse += v * v;
@@ -941,6 +1008,39 @@ public:
       else
       {
          mse /= (3.0 * width_ * height_);
+         return 20.0 * std::log10(255.0 / std::sqrt(mse));
+      }
+   }
+
+   double psnr(const unsigned int& x,
+               const unsigned int& y,
+               const bitmap_image& image)
+   {
+      if ((x + image.width()) > width_)   { return 0.0; }
+      if ((y + image.height()) > height_) { return 0.0; }
+
+      double mse = 0.0;
+
+      for(unsigned int r = 0; r < image.height(); ++r)
+      {
+         unsigned char* it1     = row(r + y) + x * bytes_per_pixel_;
+         unsigned char* it1_end = it1 + (image.width() * bytes_per_pixel_);
+         const unsigned char* it2     = image.row(r);
+         while(it1 != it1_end)
+         {
+            double v = (static_cast<double>(*it1) - static_cast<double>(*it2));
+            mse += v * v;
+            ++it1;
+            ++it2;
+         }
+      }
+      if (mse <= 0.0000001)
+      {
+         return 1000000.0;
+      }
+      else
+      {
+         mse /= (3.0 * image.width() * image.height());
          return 20.0 * std::log10(255.0 / std::sqrt(mse));
       }
    }
@@ -1653,6 +1753,84 @@ void plasma(bitmap_image& image,
    }
 }
 
+double psnr_region(const unsigned int& x,     const unsigned int& y,
+                   const unsigned int& width, const unsigned int& height,
+                   const bitmap_image& image1, const bitmap_image& image2)
+{
+   if ((image1.width() != image2.width()) ||
+       (image1.height() != image2.height()))
+   {
+      return 0.0;
+   }
+
+   if ((x +  width) >  image1.width()) { return 0.0; }
+   if ((y + height) > image1.height()) { return 0.0; }
+
+   double mse = 0.0;
+
+   for(unsigned int r = 0; r < height; ++r)
+   {
+      const unsigned char* it1       = image1.row(r + y) + x * image1.bytes_per_pixel();
+      const unsigned char* it1_end   = it1 + (width * image1.bytes_per_pixel());
+      const unsigned char* it2 = image2.row(r + y) + x * image2.bytes_per_pixel();
+      while(it1 != it1_end)
+      {
+         double v = (static_cast<double>(*it1) - static_cast<double>(*it2));
+         mse += v * v;
+         ++it1;
+         ++it2;
+      }
+   }
+   if (mse <= 0.0000001)
+   {
+      return 1000000.0;
+   }
+   else
+   {
+      mse /= (3.0 * width * height);
+      return 20.0 * std::log10(255.0 / std::sqrt(mse));
+   }
+}
+
+void hierarchical_psnr_r(const double& x,     const double& y,
+                         const double& width, const double& height,
+                         const bitmap_image& image1, bitmap_image& image2, const double& threshold)
+{
+   if ((width <= 4.0) || (height <= 4.0))
+   {
+      double psnr = psnr_region(static_cast<unsigned int>(x),static_cast<unsigned int>(y),
+                                static_cast<unsigned int>(width),static_cast<unsigned int>(height),image1,image2);
+      if (psnr < threshold)
+      {
+         rgb_store c =  color_map[static_cast<unsigned int>(1000.0 * (1.0 - (psnr / threshold)))];
+         image2.set_region(static_cast<unsigned int>(x),static_cast<unsigned int>(y),
+                           static_cast<unsigned int>(width + 1),static_cast<unsigned int>(height + 1),c.red,c.green,c.blue);
+      }
+   }
+   else
+   {
+      double half_width  = ( width / 2.0);
+      double half_height = (height / 2.0);
+      hierarchical_psnr_r(x             , y              , half_width, half_height,image1,image2,threshold);
+      hierarchical_psnr_r(x + half_width, y              , half_width, half_height,image1,image2,threshold);
+      hierarchical_psnr_r(x + half_width, y + half_height, half_width, half_height,image1,image2,threshold);
+      hierarchical_psnr_r(x             , y + half_height, half_width, half_height,image1,image2,threshold);
+   }
+}
+
+void hierarchical_psnr(bitmap_image& image1,bitmap_image& image2, const double threshold)
+{
+   if ((image1.width() != image2.width()) ||
+       (image1.height() != image2.height()))
+   {
+      return;
+   }
+   double psnr = psnr_region(0,0,image1.width(),image1.height(),image1,image2);
+   if (psnr < threshold)
+   {
+      hierarchical_psnr_r(0,0, image1.width(), image1.height(),image1,image2,threshold);
+   }
+}
 
 class image_drawer
 {
