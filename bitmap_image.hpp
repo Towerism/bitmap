@@ -1157,7 +1157,7 @@ private:
 
       create_bitmap();
 
-      for (unsigned int i = 0; i < height_; i++)
+      for (unsigned int i = 0; i < height_; ++i)
       {
          unsigned char* data_ptr = row(height_ - i - 1); // read in inverted row order
          stream.read(reinterpret_cast<char*>(data_ptr),sizeof(char) * bytes_per_pixel_ * width_);
