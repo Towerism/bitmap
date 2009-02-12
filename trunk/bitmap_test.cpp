@@ -173,7 +173,7 @@ inline void test09()
    {
       for(unsigned int y = 0; y < dim; ++y)
       {
-         rgb_store col = color_map[(x + y) % dim];
+         rgb_store col = jet_colormap[(x + y) % dim];
          image.set_pixel(x,y,col.red,col.green,col.blue);
       }
    }
@@ -252,7 +252,7 @@ inline void test14()
    double c4 = 0.7;
 
    ::srand(0xA5AA5AA5);
-   plasma(image,0,0,image.width(),image.height(),c1,c2,c3,c4,3.0);
+   plasma(image,0,0,image.width(),image.height(),c1,c2,c3,c4,3.0,jet_colormap);
    image.save_image("plasma.bmp");
 }
 
@@ -266,7 +266,7 @@ inline void test15()
    double c4 = 0.7;
 
    bitmap_image plasma_image(image.width(),image.height());
-   plasma(plasma_image,0,0,plasma_image.width(),plasma_image.height(),c1,c2,c3,c4,3.0);
+   plasma(plasma_image,0,0,plasma_image.width(),plasma_image.height(),c1,c2,c3,c4,3.0,jet_colormap);
 
    bitmap_image temp_image(image);
 
@@ -315,7 +315,7 @@ inline void test16()
    double c3 = 0.3;
    double c4 = 0.7;
 
-   plasma(image,0,0,image.width(),image.height(),c1,c2,c3,c4,3.0);
+   plasma(image,0,0,image.width(),image.height(),c1,c2,c3,c4,3.0,jet_colormap);
 
    image_drawer draw(image);
 
@@ -337,6 +337,33 @@ inline void test16()
    image.save_image("image_drawer.bmp");
 }
 
+inline void test17()
+{
+   bitmap_image image(1000,180);
+   image_drawer draw(image);
+   const rgb_store* colormap[9] = {
+                                   autumn_colormap,
+                                   copper_colormap,
+                                   gray_colormap,
+                                   hot_colormap,
+                                   hsv_colormap,
+                                   jet_colormap,
+                                   prism_colormap,
+                                   vga_colormap,
+                                   yarg_colormap
+                                  };
+
+   for(unsigned int i = 0; i < image.width(); ++i)
+   {
+      for(unsigned int j = 0; j < 9; ++j)
+      {
+         draw.pen_color(colormap[j][i].red,colormap[j][i].green,colormap[j][i].blue);
+         draw.vertical_line_segment(j * 20, (j + 1) * 20, i);
+      }
+   }
+   image.save_image("color_maps.bmp");
+}
+
 int main(void)
 {
    test01();
@@ -355,5 +382,6 @@ int main(void)
    test14();
    test15();
    test16();
+   test17();
    return 0;
 }
