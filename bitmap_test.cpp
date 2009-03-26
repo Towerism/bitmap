@@ -11,7 +11,7 @@
  * Free use of the Platform Independent Bitmap Image Reader Writer Library *
  * is permitted under the guidelines and in accordance with the most       *
  * current version of the Common Public License.                           *
- * http://www.opensource.org/licenses/cpl.php                              *
+ * http://www.opensource.org/licenses/cpl1.0.php                           *
  *                                                                         *
  ***************************************************************************
 */
