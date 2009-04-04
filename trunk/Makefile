@@ -9,7 +9,7 @@
 # Free use of this library is permitted under the
 # guidelines and in accordance with the most
 # current version of the Common Public License.
-# http://www.opensource.org/licenses/cpl.php
+# http://www.opensource.org/licenses/cpl1.0.php
 #
 
 COMPILER      = -c++
