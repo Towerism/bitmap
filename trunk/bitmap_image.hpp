@@ -424,7 +424,7 @@ public:
       char padding_data[4] = {0x0,0x0,0x0,0x0};
       for (unsigned int i = 0; i < height_; ++i)
       {
-         unsigned char* data_ptr = data_ + (row_increment_ /*bytes_per_pixel_ * width_*/ * (height_ - i - 1));
+         unsigned char* data_ptr = data_ + (row_increment_ * (height_ - i - 1));
          stream.write(reinterpret_cast<char*>(data_ptr),sizeof(unsigned char) * bytes_per_pixel_ * width_);
          stream.write(padding_data,padding);
       }
@@ -1057,12 +1057,10 @@ public:
    void histogram_normalized(const color_plane color, double hist[256])
    {
       histogram(color,hist);
-
-      std::fill(hist,hist + 256,0.0);
-      for(unsigned char* it = (data_ + offset(color)); it < (data_ + length_); it += bytes_per_pixel_)
-      {
-         ++hist[(*it)];
-      }
+      double* h_it = hist;
+      const double* h_end = hist + 256;
+      const double pixel_count = static_cast<double>(width_ * height_);
+      while(h_end != h_it) { *(h_it++) /= pixel_count; }
    }
 
    unsigned int offset(const color_plane color)
