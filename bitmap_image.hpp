@@ -1428,7 +1428,9 @@ inline void subsample(const unsigned int& width,
    {
       for (unsigned int i = 0; i < horizontal_upper; ++i, ++s_it)
       {
-         (*s_it) = ( (*(it1++)) + (*(it1++))  ) / 2.0;
+         (*s_it) += (*(it1++));
+         (*s_it) += (*(it1++));
+         (*s_it) /= 2.0;
       }
       if (odd_width)
       {
