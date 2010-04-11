@@ -13,17 +13,15 @@
 #
 
 COMPILER      = -c++
-OPTIONS       = -ansi -pedantic -Wall -o
-OPTIONS_LIBS  = -ansi -pedantic -Wall -c
+OPTIONS       = -ansi -pedantic-errors -Wall -Wall -Werror -Wextra -o
 
 all: bitmap_test
 
 bitmap_test: bitmap_test.cpp bitmap_image.hpp
 	$(COMPILER) $(OPTIONS) bitmap_test bitmap_test.cpp
 
-
 clean:
-	rm -f core *.o *.bak *stackdump *#
+	rm -f core *.o *.bak *stackdump *~
   
 #
 # The End !
