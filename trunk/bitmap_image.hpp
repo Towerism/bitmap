@@ -982,8 +982,8 @@ public:
       while (itr1 != itr1_end)
       {
          *(itr1) = static_cast<unsigned char>((alpha * (*itr2)) + (alpha_compliment * (*itr1)));
-         *(itr1++);
-         *(itr2++);
+         ++itr1;
+         ++itr2;
       }
    }
 
