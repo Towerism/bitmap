@@ -38,13 +38,13 @@ struct bitmap_file_header
    unsigned short reserved2;
    unsigned int   off_bits;
 
-   unsigned int struct_size()
+   inline unsigned int struct_size()
    {
-      return sizeof(type)     +
-            sizeof(size)      +
-            sizeof(reserved1) +
-            sizeof(reserved2) +
-            sizeof(off_bits);
+      return sizeof(type)      +
+             sizeof(size)      +
+             sizeof(reserved1) +
+             sizeof(reserved2) +
+             sizeof(off_bits);
    }
 };
 
@@ -62,7 +62,7 @@ struct bitmap_information_header
    unsigned int   clr_used;
    unsigned int   clr_important;
 
-   unsigned int struct_size()
+   inline unsigned int struct_size()
    {
       return sizeof(size)             +
              sizeof(width)            +
@@ -1205,8 +1205,9 @@ private:
 
 inline bool big_endian()
 {
-   unsigned int v = 0x01;
-   return (1 != reinterpret_cast<char*>(&v)[0]);
+   static const unsigned int v = 0x01;
+   static const bool is_big_endian = (1 != reinterpret_cast<const char*>(&v)[0]);
+   return is_big_endian;
 }
 
 inline unsigned short flip(const unsigned short& v)
@@ -1244,11 +1245,11 @@ inline void read_bfh(std::ifstream& stream, bitmap_file_header& bfh)
 
    if (big_endian())
    {
-      flip(bfh.type);
-      flip(bfh.size);
-      flip(bfh.reserved1);
-      flip(bfh.reserved2);
-      flip(bfh.off_bits);
+      bfh.type = flip(bfh.type);
+      bfh.size = flip(bfh.size);
+      bfh.reserved1 = flip(bfh.reserved1);
+      bfh.reserved2 = flip(bfh.reserved2);
+      bfh.off_bits = flip(bfh.off_bits);
    }
 }
 
@@ -1256,18 +1257,20 @@ inline void write_bfh(std::ofstream& stream, const bitmap_file_header& bfh)
 {
    if (big_endian())
    {
-      flip(bfh.type);
-      flip(bfh.size);
-      flip(bfh.reserved1);
-      flip(bfh.reserved2);
-      flip(bfh.off_bits);
+      write_to_stream(stream,flip(bfh.type));
+      write_to_stream(stream,flip(bfh.size));
+      write_to_stream(stream,flip(bfh.reserved1));
+      write_to_stream(stream,flip(bfh.reserved2));
+      write_to_stream(stream,flip(bfh.off_bits));
    }
-
-   write_to_stream(stream,bfh.type);
-   write_to_stream(stream,bfh.size);
-   write_to_stream(stream,bfh.reserved1);
-   write_to_stream(stream,bfh.reserved2);
-   write_to_stream(stream,bfh.off_bits);
+   else
+   {
+      write_to_stream(stream,bfh.type);
+      write_to_stream(stream,bfh.size);
+      write_to_stream(stream,bfh.reserved1);
+      write_to_stream(stream,bfh.reserved2);
+      write_to_stream(stream,bfh.off_bits);
+   }
 }
 
 inline void read_bih(std::ifstream& stream,bitmap_information_header& bih)
@@ -1283,19 +1286,20 @@ inline void read_bih(std::ifstream& stream,bitmap_information_header& bih)
    read_from_stream(stream,bih.y_pels_per_meter);
    read_from_stream(stream,bih.clr_used);
    read_from_stream(stream,bih.clr_important);
+
    if (big_endian())
    {
-      flip(bih.size);
-      flip(bih.width);
-      flip(bih.height);
-      flip(bih.planes);
-      flip(bih.bit_count);
-      flip(bih.compression);
-      flip(bih.size_image);
-      flip(bih.x_pels_per_meter);
-      flip(bih.y_pels_per_meter);
-      flip(bih.clr_used);
-      flip(bih.clr_important);
+      bih.size = flip(bih.size);
+      bih.width = flip(bih.width);
+      bih.height = flip(bih.height);
+      bih.planes = flip(bih.planes);
+      bih.bit_count = flip(bih.bit_count);
+      bih.compression = flip(bih.compression);
+      bih.size_image = flip(bih.size_image);
+      bih.x_pels_per_meter = flip(bih.x_pels_per_meter);
+      bih.y_pels_per_meter = flip(bih.y_pels_per_meter);
+      bih.clr_used = flip(bih.clr_used);
+      bih.clr_important = flip(bih.clr_important);
    }
 }
 
@@ -1303,29 +1307,32 @@ inline void write_bih(std::ofstream& stream, const bitmap_information_header& bi
 {
    if (big_endian())
    {
-      flip(bih.size);
-      flip(bih.width);
-      flip(bih.height);
-      flip(bih.planes);
-      flip(bih.bit_count);
-      flip(bih.compression);
-      flip(bih.size_image);
-      flip(bih.x_pels_per_meter);
-      flip(bih.y_pels_per_meter);
-      flip(bih.clr_used);
-      flip(bih.clr_important);
+      write_to_stream(stream,flip(bih.size));
+      write_to_stream(stream,flip(bih.width));
+      write_to_stream(stream,flip(bih.height));
+      write_to_stream(stream,flip(bih.planes));
+      write_to_stream(stream,flip(bih.bit_count));
+      write_to_stream(stream,flip(bih.compression));
+      write_to_stream(stream,flip(bih.size_image));
+      write_to_stream(stream,flip(bih.x_pels_per_meter));
+      write_to_stream(stream,flip(bih.y_pels_per_meter));
+      write_to_stream(stream,flip(bih.clr_used));
+      write_to_stream(stream,flip(bih.clr_important));
    }
-   write_to_stream(stream,bih.size);
-   write_to_stream(stream,bih.width);
-   write_to_stream(stream,bih.height);
-   write_to_stream(stream,bih.planes);
-   write_to_stream(stream,bih.bit_count);
-   write_to_stream(stream,bih.compression);
-   write_to_stream(stream,bih.size_image);
-   write_to_stream(stream,bih.x_pels_per_meter);
-   write_to_stream(stream,bih.y_pels_per_meter);
-   write_to_stream(stream,bih.clr_used);
-   write_to_stream(stream,bih.clr_important);
+   else
+   {
+      write_to_stream(stream,bih.size);
+      write_to_stream(stream,bih.width);
+      write_to_stream(stream,bih.height);
+      write_to_stream(stream,bih.planes);
+      write_to_stream(stream,bih.bit_count);
+      write_to_stream(stream,bih.compression);
+      write_to_stream(stream,bih.size_image);
+      write_to_stream(stream,bih.x_pels_per_meter);
+      write_to_stream(stream,bih.y_pels_per_meter);
+      write_to_stream(stream,bih.clr_used);
+      write_to_stream(stream,bih.clr_important);
+   }
 }
 
 struct rgb_store
