@@ -14,11 +14,12 @@
 
 COMPILER      = -c++
 OPTIONS       = -ansi -pedantic-errors -Wall -Wall -Werror -Wextra -o
+LINKER_OPT    = -L/usr/lib -lstdc++
 
 all: bitmap_test
 
 bitmap_test: bitmap_test.cpp bitmap_image.hpp
-	$(COMPILER) $(OPTIONS) bitmap_test bitmap_test.cpp
+	$(COMPILER) $(OPTIONS) bitmap_test bitmap_test.cpp $(LINKER_OPT)
 
 clean:
 	rm -f core *.o *.bak *stackdump *~
