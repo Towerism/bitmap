@@ -1248,6 +1248,7 @@ private:
          write_to_stream(stream,bih.clr_important);
       }
    }
+
    void create_bitmap()
    {
       length_ = width_ * height_ * bytes_per_pixel_;
