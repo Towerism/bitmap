@@ -118,6 +118,15 @@ public:
       return *this;
    }
 
+   inline bool operator!()
+   {
+      return (data_         == 0) ||
+             (length_       == 0) ||
+             (width_        == 0) ||
+             (height_       == 0) ||
+             (row_increment_== 0);
+   }
+
    inline void clear(const unsigned char v = 0x00)
    {
       std::fill(data_,data_ + length_,v);
